@@ -112,7 +112,7 @@ int main()
 //--------------------------------------------------------------------
 const unsigned N = 1000;
 const unsigned M = 1000;
-const unsigned P = 1000;
+const unsigned P = 500;
 float *input_a=(float *) malloc(sizeof(float)*N*P);
 float *input_b=(float *) malloc(sizeof(float)*P*M);
 float *output=(float *) malloc(sizeof(float)*N*M);
@@ -193,12 +193,15 @@ if (program == NULL){
 				CL_MAP_READ, 0,N*M* sizeof(float),  0, NULL, NULL,&errcode);
 		checkError(errcode, "Failed to map output");
 
+		// Initialization of  matrices
 		for(unsigned j = 0; j < N*P; ++j) {
 					input_a[j] = rand_float();
 		}
 		for(unsigned i = 0; i < P*M; ++i) {
 					input_b[i] = rand_float();
 		}
+
+		// Fixed dim 4x3 and 3x4 matrices
 		// input_a[0] = 1;
 		// input_a[1] = 2;
 		// input_a[2] = 3;
@@ -224,33 +227,22 @@ if (program == NULL){
 		// input_b[9] = 22;
 		// input_b[10] = 23;
 		// input_b[11] = 24;
+
 		// print_matrix(input_a, P, N);
-		//
 		// print_matrix(input_b, M, P);
+
+		// Measure CPU
 		if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart) < 0) {
 			return -1;
 		}
-
 		for(unsigned n = 0; n < N; n++) {
 			for(unsigned m = 0; m < M; m++) {
+				ref_output[n*N + m] = 0;
 				for(unsigned jj = 0; jj < P; jj++) {
 			    ref_output[n*N + m] += (input_a[n*P+jj] * input_b[jj*M + m]);
-					// z[index_y*N + index_x] += (x[index_y*P+j] * y[j*M + index_x]);
-			    //  printf("INDEXES:[%d,%d] :: x[%d] --- [%f], y[%d] --- [%f] ---\n",  index_y, index_x, index_y*P+j, x[index_y*P+j], j*M + index_x, y[j*M + index_x]);
 			  }
 			}
 		}
-
-		// print_matrix(ref_output, M, N);
-
-		// for(unsigned j = 0; j < N*M; ++j) {
-		// 	for(unsigned jj = 0; jj < P; jj++) {
-		//     z[index_y*N + index_x] += (x[index_y*P+j] * y[j*M + index_x]);
-		//     //  printf("INDEXES:[%d,%d] :: x[%d] --- [%f], y[%d] --- [%f] ---\n",  index_y, index_x, index_y*P+j, x[index_y*P+j], j*M + index_x, y[j*M + index_x]);
-		//   }
-		// 			ref_output[j] = input_a[j] + input_b[j];
-		// 			// printf("ref %f\n",ref_output[j]);
-		// }
 
 		if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend) < 0) {
 			return -1;
