@@ -3,6 +3,8 @@
 #include <iostream> // for standard I/O
 #include <math.h>
 #include <time.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #define STRING_BUFFER_LEN 1024
@@ -59,7 +61,7 @@ void callback(const char *buffer, size_t length, size_t final, void *user_data)
 
 
 void checkError(int status, const char *msg) {
-	if(status!=CL_SUCCESS)	
+	if(status!=CL_SUCCESS)
 		printf("%s\n",msg);
 }
 
@@ -68,14 +70,24 @@ float rand_float() {
   return float(rand()) / float(RAND_MAX) * 20.0f - 10.0f;
 }
 
+long timespec_ms(struct timespec *start, struct timespec *end) {
+
+	long nsms = (end->tv_nsec - start->tv_nsec)/ (1000 * 1000);
+	if (nsms < 0)
+		nsms += 1;
+
+	return (end->tv_sec - start->tv_sec) * 1000 + nsms ;
+}
+
 int main()
 {
+	int errcode = CL_SUCCESS;
      char char_buffer[STRING_BUFFER_LEN];
      cl_platform_id platform;
      cl_device_id device;
      cl_context context;
      cl_context_properties context_properties[] =
-     { 
+     {
           CL_CONTEXT_PLATFORM, 0,
           CL_PRINTF_CALLBACK_ARM, (cl_context_properties)callback,
           CL_PRINTF_BUFFERSIZE_ARM, 0x1000,
@@ -88,7 +100,7 @@ int main()
 
 
 //--------------------------------------------------------------------
-const unsigned N = 50000000;
+const unsigned N = 30000000;
 float *input_a=(float *) malloc(sizeof(float)*N);
 float *input_b=(float *) malloc(sizeof(float)*N);
 float *output=(float *) malloc(sizeof(float)*N);
@@ -98,20 +110,45 @@ cl_mem input_b_buf; // num_devices elements
 cl_mem output_buf; // num_devices elements
 int status;
 
-	time_t start,end;
-	double diff;
-	time (&start);
-	for(unsigned j = 0; j < N; ++j) {
-	      input_a[j] = rand_float();
-	      input_b[j] = rand_float();
-	      ref_output[j] = input_a[j] + input_b[j];
-	      //printf("ref %f\n",ref_output[j]);
-	    }
-	time (&end);
-	diff = difftime (end,start);
-  	printf ("CPU took %.2lf seconds to run.\n", diff );
+struct timespec tstart, tend;
+struct timespec tstart_cpy, tend_cpy;
+struct timespec tstart_kern, tend_kern;
+struct timespec tstart_write, tend_write;
+	long ms = 0, msall = 0, ms_cpy = 0, ms_kern = 0, ms_write = 0;
 
-    time (&start);
+
+	// time_t start,end;
+	// double diff;
+
+	// for(unsigned j = 0; j < N; ++j) {
+	//       input_a[j] = rand_float();
+	//       input_b[j] = rand_float();
+	// }
+	//
+	// if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart) < 0) {
+	// 	return -1;
+	// }
+	//
+	// for(unsigned j = 0; j < N; ++j) {
+	//       ref_output[j] = input_a[j] + input_b[j];
+	//       //printf("ref %f\n",ref_output[j]);
+	// }
+	//
+	// if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend) < 0) {
+	// 	return -1;
+	// }
+	//
+	// 	   ms = timespec_ms(&tstart, &tend);
+	// // time (&end);
+	// // diff = difftime (end,start);
+  // 	printf ("CPU took %ld miliseconds to run.\n", ms );
+
+
+		// if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart) < 0) {
+		// 	return -1;
+		// }
+
+    // time (&start);
      clGetPlatformIDs(1, &platform, NULL);
      clGetPlatformInfo(platform, CL_PLATFORM_NAME, STRING_BUFFER_LEN, char_buffer, NULL);
      printf("%-40s = %s\n", "CL_PLATFORM_NAME", char_buffer);
@@ -131,23 +168,46 @@ int status;
 	{
          printf("Program creation failed\n");
          return 1;
-	}	
+	}
+
+	if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart) < 0) {
+		return -1;
+	}
+
+	if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart_cpy) < 0) {
+		return -1;
+	}
+
      int success=clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
 	 if(success!=CL_SUCCESS) print_clbuild_errors(program,device);
      kernel = clCreateKernel(program, "vector_add", NULL);
  // Input buffers.
-    input_a_buf = clCreateBuffer(context, CL_MEM_READ_ONLY,
-       N* sizeof(float), NULL, &status);
-    checkError(status, "Failed to create buffer for input A");
 
-    input_b_buf = clCreateBuffer(context, CL_MEM_READ_ONLY,
-        N* sizeof(float), NULL, &status);
-    checkError(status, "Failed to create buffer for input B");
+ input_a_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR,
+			N* sizeof(float), NULL, &status);
+	 checkError(status, "Failed to create buffer for input A");
 
-    // Output buffer.
-    output_buf = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-        N* sizeof(float), NULL, &status);
-    checkError(status, "Failed to create buffer for output");
+	 input_b_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR,
+			 N* sizeof(float), NULL, &status);
+	 checkError(status, "Failed to create buffer for input B");
+
+	 // Output buffer.
+	 output_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR,
+			 N* sizeof(float), NULL, &status);
+	 checkError(status, "Failed to create buffer for output");
+
+    // input_a_buf = clCreateBuffer(context, CL_MEM_READ_ONLY,
+    //    N* sizeof(float), NULL, &status);
+    // checkError(status, "Failed to create buffer for input A");
+		//
+    // input_b_buf = clCreateBuffer(context, CL_MEM_READ_ONLY,
+    //     N* sizeof(float), NULL, &status);
+    // checkError(status, "Failed to create buffer for input B");
+		//
+    // // Output buffer.
+    // output_buf = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+    //     N* sizeof(float), NULL, &status);
+    // checkError(status, "Failed to create buffer for output");
 
 
 
@@ -156,13 +216,63 @@ int status;
     // for the host-to-device transfer.
     cl_event write_event[2];
 	cl_event kernel_event,finish_event;
-    status = clEnqueueWriteBuffer(queue, input_a_buf, CL_FALSE,
-        0, N* sizeof(float), input_a, 0, NULL, &write_event[0]);
-    checkError(status, "Failed to transfer input A");
 
-    status = clEnqueueWriteBuffer(queue, input_b_buf, CL_FALSE,
-        0, N* sizeof(float), input_b, 0, NULL, &write_event[1]);
-    checkError(status, "Failed to transfer input B");
+// int y = 0;
+// for(int xx = 0; xx < 10000000; xx++) {
+//   y += xx;
+// 	y += 1;
+// 	y *= 2;
+// 	y /= 5;
+// }
+// printf("%d\n", y);
+
+    // status = clEnqueueWriteBuffer(queue, input_a_buf, CL_TRUE,
+    //     0, N* sizeof(float), input_a, 0, NULL, &write_event[0]);
+    // checkError(status, "Failed to transfer input A");
+		//
+    // status = clEnqueueWriteBuffer(queue, input_b_buf, CL_TRUE,
+    //     0, N* sizeof(float), input_b, 0, NULL, &write_event[1]);
+    // checkError(status, "Failed to transfer input B");
+
+		input_a = (float *)clEnqueueMapBuffer(queue, input_a_buf, CL_TRUE,
+					CL_MAP_WRITE,0, N* sizeof(float), 0, NULL, &write_event[0],&errcode);
+			checkError(errcode, "Failed to map input A");
+
+			input_b = (float *)clEnqueueMapBuffer(queue, input_b_buf, CL_TRUE,
+					CL_MAP_WRITE, 0,N* sizeof(float), 0, NULL, &write_event[1],&errcode);
+			checkError(errcode, "Failed to map input B");
+
+		// Map to host memory
+			output = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE,
+					CL_MAP_READ, 0,N* sizeof(float),  0, NULL, NULL,&errcode);
+			checkError(errcode, "Failed to map output");
+
+			for(unsigned j = 0; j < N; ++j) {
+						input_a[j] = rand_float();
+						input_b[j] = rand_float();
+			}
+
+			if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart) < 0) {
+				return -1;
+			}
+
+			
+
+			for(unsigned j = 0; j < N; ++j) {
+						ref_output[j] = input_a[j] + input_b[j];
+						// printf("ref %f\n",ref_output[j]);
+			}
+
+			if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend) < 0) {
+				return -1;
+			}
+
+					 ms = timespec_ms(&tstart, &tend);
+			// time (&end);
+			// diff = difftime (end,start);
+				printf ("CPU took %ld miliseconds to run.\n", ms );
+
+
 
     // Set kernel arguments.
     unsigned argi = 0;
@@ -176,17 +286,60 @@ int status;
     status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &output_buf);
     checkError(status, "Failed to set argument 3");
 
+		clWaitForEvents(2, write_event);
+		if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend_cpy) < 0) {
+			return -1;
+		}
+
+		///
+		if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart_kern) < 0) {
+			return -1;
+		}
+
     const size_t global_work_size = N;
     status = clEnqueueNDRangeKernel(queue, kernel, 1, NULL,
         &global_work_size, NULL, 2, write_event, &kernel_event);
-    checkError(status, "Failed to launch kernel");
-    // Read the result. This the final operation.
-    status = clEnqueueReadBuffer(queue, output_buf, CL_TRUE,
-        0, N* sizeof(float), output, 1, &kernel_event, &finish_event);
 
-   time (&end);
-   diff = difftime (end,start);
-   printf ("GPU took %.8lf seconds to run.\n", diff );
+    checkError(status, "Failed to launch kernel");
+		status=clWaitForEvents(1,&kernel_event);
+			checkError(status, "Failed  wait");
+
+		// Profile Events
+		// void *start;
+		// void *end;
+		// size_t size = N;
+		// clGetEventProfilingInfo(kernel_event,CL_PROFILING_COMMAND_START,8,&start,&size);
+		// clGetEventProfilingInfo(kernel_event,CL_PROFILING_COMMAND_END,8,&end,&size);
+
+if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend_kern) < 0) {
+	return -1;
+}
+   ////
+
+	 if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart_write) < 0) {
+	 	return -1;
+	 }
+    // Read the result. This the final operation.
+    // status = clEnqueueReadBuffer(queue, output_buf, CL_TRUE,
+    //     0, N* sizeof(float), output, 1, &kernel_event, &finish_event);
+clWaitForEvents(1, &finish_event);
+				if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend_write) < 0) {
+					return -1;
+				}
+  //  time (&end);
+
+
+if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend) < 0) {
+	return -1;
+}
+
+   msall = timespec_ms(&tstart, &tend);
+	 ms_cpy = timespec_ms(&tstart_cpy, &tend_cpy);
+	 ms_kern = timespec_ms(&tstart_kern, &tend_kern);
+	 ms_write = timespec_ms(&tstart_kern, &tend_write);
+
+  //  diff = difftime (end,start);
+   printf ("GPU took %ld miliseconds to run. (ALL::[%ld], COPY::[%ld], WRITE::[%ld])\n", ms_kern, msall, ms_cpy, ms_write );
 // Verify results.
 bool pass = true;
 
