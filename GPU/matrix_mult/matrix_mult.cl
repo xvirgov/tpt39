@@ -5,26 +5,46 @@ __kernel void vector_add(__global const float *x,
                         const unsigned M,
                         const unsigned P)
 {
-  // const unsigned row_N = *N;
-  int index_x = get_global_id(0);
-  int index_y = get_global_id(1);
-  // int row_num = index_x %
-  // printf("X::[%d],Y::[%d]\n", index_x, index_y);
-  // // printf("BEF::%f = %f + %f\n", z[index]), x[index], y[index];
-  // // z[index] = x[index] + y[index];
-  // // printf("AFT::%f = %f + %f\n", z[index]), x[index], y[index];
-  // float res = 0.;
+  // Without tiling
+  // int index_x = get_global_id(0);
+  // int index_y = get_global_id(1);
   //
-  // for()
-  // printf("---------------\n");
-  // printf("N::[%d],X_EL[%d,%d] = %f\n", N, index_y, index_x, x[index_y*N + index_x]);
-  // printf("N::[%d],Y_EL[%d,%d] = %f\n", N, index_y, index_x, y[index_y*N + index_x]);
+  // z[index_y*N + index_x] = 0.;
+  // for(int j = 0; j < P; j++) {
+  //   z[index_y*N + index_x] += (x[index_y*P+j] * y[j*M + index_x]);
+  // }
+
+  // With tiling
+  int index_x = get_group_id(0)*get_local_size(0) + get_local_id(0);
+  int index_y = get_group_id(1)*get_local_size(1) + get_local_id(1);
+
   z[index_y*N + index_x] = 0.;
   for(int j = 0; j < P; j++) {
     z[index_y*N + index_x] += (x[index_y*P+j] * y[j*M + index_x]);
-    //  printf("INDEXES:[%d,%d] :: x[%d] --- [%f], y[%d] --- [%f] ---\n",  index_y, index_x, index_y*P+j, x[index_y*P+j], j*M + index_x, y[j*M + index_x]);
   }
 
-  // printf("N::[%d],Z_EL[%d,%d] = %f\n", N, index_y, index_x, z[index_y*N + index_x]);
-  // printf("---------------\n");
+  // For debugging
+  // printf("index_x::[%d], index_y::[%d] ---> [%f]\n", index_x, index_y, z[index_y*N + index_x]);
+
+  // printf("get_work_dim()::%d\n",get_work_dim());
+  // printf("get_global_size(0)::%d\n",get_global_size(0));
+  // printf("get_global_size(1)::%d\n",get_global_size(1));
+  //
+  // printf("get_global_id(0)::%d\n",get_global_id(0));
+  // printf("get_global_id(1)::%d\n",get_global_id(1));
+  //
+  // printf("get_local_size(0)::%d\n",get_local_size(0));
+  // printf("get_local_size(1)::%d\n",get_local_size(1));
+  //
+  // printf("get_local_id(0)::%d\n",get_local_id(0));
+  // printf("get_local_id(1)::%d\n",get_local_id(1));
+  //
+  // printf("get_num_groups(0)::%d\n",get_num_groups(0));
+  // printf("get_num_groups(1)::%d\n",get_num_groups(1));
+  //
+  // printf("get_group_id(0)::%d\n",get_group_id(0));
+  // printf("get_group_id(1)::%d\n",get_group_id(1));
+  //
+  // printf("get_global_offset(0)::%d\n",get_global_offset(0));
+  // printf("get_global_offset(1)::%d\n",get_global_offset(1));
 }

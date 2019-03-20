@@ -110,9 +110,9 @@ int main()
 
 
 //--------------------------------------------------------------------
-const unsigned N = 1000;
-const unsigned M = 1000;
-const unsigned P = 500;
+const unsigned N = 400;
+const unsigned M = 400;
+const unsigned P = 400;
 float *input_a=(float *) malloc(sizeof(float)*N*P);
 float *input_b=(float *) malloc(sizeof(float)*P*M);
 float *output=(float *) malloc(sizeof(float)*N*M);
