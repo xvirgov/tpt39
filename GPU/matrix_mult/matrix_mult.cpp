@@ -110,9 +110,9 @@ int main()
 
 
 //--------------------------------------------------------------------
-const unsigned N = 800;
-const unsigned M = 800;
-const unsigned P = 400;
+const unsigned N = 1000;
+const unsigned M = 1000;
+const unsigned P = 1000;
 float *input_a=(float *) malloc(sizeof(float)*N*P);
 float *input_b=(float *) malloc(sizeof(float)*P*M);
 float *output=(float *) malloc(sizeof(float)*N*M);
@@ -122,11 +122,11 @@ cl_mem input_b_buf; // num_devices elements
 cl_mem output_buf; // num_devices elements
 int status;
 
-// struct timespec tstart, tend;
+struct timespec tstart, tend;
 struct timespec tstart_cpy, tend_cpy;
 struct timespec tstart_kern, tend_kern;
 // struct timespec tstart_write, tend_write;
-long /*ms = 0,msall = 0,*/ ms_cpy = 0, ms_kern = 0;
+long ms = 0,/*,msall = 0,*/ ms_cpy = 0, ms_kern = 0;
 
 clGetPlatformIDs(1, &platform, NULL);
 clGetPlatformInfo(platform, CL_PLATFORM_NAME, STRING_BUFFER_LEN, char_buffer, NULL);
@@ -227,23 +227,37 @@ if (program == NULL){
 		// print_matrix(input_a, P, N);
 		//
 		// print_matrix(input_b, M, P);
-			// if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart) < 0) {
-			// 	return -1;
-			// }
-			//
-			// for(unsigned j = 0; j < N*M; ++j) {
-			// 			ref_output[j] = input_a[j] + input_b[j];
-			// 			// printf("ref %f\n",ref_output[j]);
-			// }
-			//
-			// if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend) < 0) {
-			// 	return -1;
-			// }
-			//
-			// 		 ms = timespec_ms(&tstart, &tend);
-			// // time (&end);
-			// // diff = difftime (end,start);
-			// 	printf ("CPU took %ld miliseconds to run.\n", ms );
+		if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart) < 0) {
+			return -1;
+		}
+
+		for(unsigned n = 0; n < N; n++) {
+			for(unsigned m = 0; m < M; m++) {
+				for(unsigned jj = 0; jj < P; jj++) {
+			    ref_output[n*N + m] += (input_a[n*P+jj] * input_b[jj*M + m]);
+					// z[index_y*N + index_x] += (x[index_y*P+j] * y[j*M + index_x]);
+			    //  printf("INDEXES:[%d,%d] :: x[%d] --- [%f], y[%d] --- [%f] ---\n",  index_y, index_x, index_y*P+j, x[index_y*P+j], j*M + index_x, y[j*M + index_x]);
+			  }
+			}
+		}
+
+		// print_matrix(ref_output, M, N);
+
+		// for(unsigned j = 0; j < N*M; ++j) {
+		// 	for(unsigned jj = 0; jj < P; jj++) {
+		//     z[index_y*N + index_x] += (x[index_y*P+j] * y[j*M + index_x]);
+		//     //  printf("INDEXES:[%d,%d] :: x[%d] --- [%f], y[%d] --- [%f] ---\n",  index_y, index_x, index_y*P+j, x[index_y*P+j], j*M + index_x, y[j*M + index_x]);
+		//   }
+		// 			ref_output[j] = input_a[j] + input_b[j];
+		// 			// printf("ref %f\n",ref_output[j]);
+		// }
+
+		if(clock_gettime(CLOCK_MONOTONIC_RAW, &tend) < 0) {
+			return -1;
+		}
+
+		ms = timespec_ms(&tstart, &tend);
+		printf ("CPU took %ld miliseconds to run.\n", ms );
 
 
 
@@ -274,12 +288,14 @@ if (program == NULL){
 			return -1;
 		}
 
-		if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart_kern) < 0) {
-			return -1;
-		}
+
 
 	clEnqueueUnmapMemObject(queue,input_a_buf,input_a,0,NULL,NULL);
 	clEnqueueUnmapMemObject(queue,input_b_buf,input_b,0,NULL,NULL);
+
+	if(clock_gettime(CLOCK_MONOTONIC_RAW, &tstart_kern) < 0) {
+		return -1;
+	}
 
 	const size_t global_work_size[2] = {M,N};
   status = clEnqueueNDRangeKernel(queue, kernel, 2, NULL,
@@ -340,11 +356,6 @@ clReleaseContext(context);
 
 
 //--------------------------------------------------------------------
-
-
-
-
-
 
      clFinish(queue);
 

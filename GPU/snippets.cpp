@@ -106,7 +106,7 @@ void checkError(int status, const char *msg) {
     checkError(errcode, "Failed to map input B");
 
 	// Map to host memory
-    output = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE,
+  output = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE,
         CL_MAP_READ, 0,N* sizeof(float),  0, NULL, NULL,errcode);
     checkError(errcode, "Failed to map output");
 
