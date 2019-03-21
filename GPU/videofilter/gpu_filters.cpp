@@ -101,10 +101,40 @@ void checkError(int status, const char *msg) {
         printf("%s: %s\n",msg,getErrorString(status));
 }
 
+// void matToConv(Mat imageMatrix, float *convMatrix, int rows, int cols) {
+//   float curVal;
+//   int curIndX, curIndY;
+//   const int kernelSize = 9;
+//   const int KERNEL_MAP_X[9] = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
+//   const int KERNEL_MAP_Y[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
+//
+//   int curIdx = 0;
+//   for (int i = 0; i < rows; i++) {
+//     for (int j = 0; j < cols; j++) {
+//       for (int k = 0; k < kernelSize; k++) {
+//         curIndX = i + KERNEL_MAP_X[k];
+//         curIndY = j + KERNEL_MAP_Y[k];
+//         if ((curIndX < 0) || (curIndX >= rows) || (curIndY < 0) ||
+//             (curIndY >= cols)) {
+//           curVal = 0;
+//         } else {
+//           curVal = imageMatrix.at<float>(curIndX, curIndY);
+//           // if ((i < 5) && (j < 5)) {
+//           //   printf("Curval: %.2f\n", curVal);
+//           // }
+//         }
+//         convMatrix[curIdx * kernelSize + k] = curVal;
+//       }
+//       curIdx++;
+//     }
+//   }
+// }
+
 void gaussianBlur_gpu(Mat frame, Mat result) {
   int errcode = CL_SUCCESS;
   const int numElements = frame.rows * frame.cols;
-  float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
+  // float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
+	float *pix_window_f=(float *)frame.data;
   float *filter_mat_f=(float *) malloc(sizeof(float)*9);
   float *output_f=(float *) malloc(sizeof(float)*numElements);
   cl_mem pix_window_buf;
@@ -136,8 +166,6 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
   checkError(errcode, "Failed to map input - frame");
   filter_mat_f = (float *)clEnqueueMapBuffer(queue, filter_mat_buf, CL_TRUE, CL_MAP_WRITE,0, numElements*sizeof(float), 0, NULL, &write_event[1],&errcode);
   checkError(errcode, "Failed to map input - filter mat");
-  output_f = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE, CL_MAP_READ, 0, numElements*sizeof(float),  0, NULL, NULL,&errcode);
-  checkError(errcode, "Failed to map output");
 
   // gauss filter matrix - https://lodev.org/cgtutor/filtering.html
   filter_mat_f[0] = 0.077847;
@@ -163,27 +191,39 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
 
   status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &output_buf);
   checkError(status, "Failed to set argument 3");
+
+	status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &frame.rows);
+  checkError(status, "Failed to set argument 4");
+
+	status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &frame.cols);
+  checkError(status, "Failed to set argument 5");
   //--------------------------------------
 
   clWaitForEvents(2, write_event);
 
   clEnqueueUnmapMemObject(queue,pix_window_buf, pix_window_f,0,NULL,NULL);
-  clEnqueueUnmapMemObject(queue,output_buf, output_f,0,NULL,NULL);
 
-  const size_t global_work_size[2] = {(size_t) frame.cols, (size_t) frame.rows};
+  // printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ROWS:::%d, COLS:::%d\n", (size_t) frame.cols, (size_t) frame.rows);
+  const size_t global_work_size[2] = {640, 360};
   status = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, NULL, 2, write_event, &kernel_event);
 
   checkError(status, "Failed to launch kernel");
 	status=clWaitForEvents(1,&kernel_event);
 	checkError(status, "Failed  wait");
 
-  // clReleaseEvent(write_event[0]);
-  // clReleaseEvent(write_event[1]);
-  // clReleaseEvent(kernel_event);
-  // clReleaseEvent(finish_event);
-  // clReleaseKernel(kernel);
-  // clReleaseMemObject(pix_window_buf);
-  // clReleaseMemObject(output);
+	output_f = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE, CL_MAP_READ, 0, numElements*sizeof(float),  0, NULL, NULL,&errcode);
+  checkError(errcode, "Failed to map output");
+	 clEnqueueUnmapMemObject(queue,output_buf, output_f,0,NULL,NULL);
+
+	// free(pix_window_f);
+	// free(filter_mat_f);
+	// free(output_f);
+  clReleaseEvent(write_event[0]);
+  clReleaseEvent(write_event[1]);
+  clReleaseEvent(kernel_event);
+  clReleaseMemObject(pix_window_buf);
+	clReleaseMemObject(filter_mat_buf);
+  clReleaseMemObject(output_buf);
 
 }
 

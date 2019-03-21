@@ -1,6 +1,8 @@
 __kernel void matrix_mult_three(__global const float *x,
                         __global const float *y,
-                        __global float *restrict z)
+                        __global float *restrict z,
+                        const unsigned rows,
+                        const unsigned cols)
 {
   // Without tiling
   // int index_x = get_global_id(0);
@@ -20,7 +22,13 @@ __kernel void matrix_mult_three(__global const float *x,
   //   z[index_y*N + index_x] += (x[index_y*P+j] * y[j*M + index_x]);
   // }
   z[0] = 0;
-  printf("HELLO FROM GPU %f %f %f %d %d %d\n", x[0], y[0],z[0]);
+  int index_x = get_global_id(0);
+  int index_y = get_global_id(1);
+
+  z[index_y*cols + index_x] = x[index_y*cols + index_x];
+
+  //printf("GPU %f %f %f %d %d %d\n", x[0], y[0],z[0]);
+  // printf("COORD::[%d,%d]\n", index_x, index_y);
 
   // For debugging
   // printf("index_x::[%d], index_y::[%d] ---> [%f]\n", index_x, index_y, z[index_y*N + index_x]);

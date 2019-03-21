@@ -66,7 +66,7 @@ int main(int, char**)
   {
       CL_CONTEXT_PLATFORM, 0,
       CL_PRINTF_CALLBACK_ARM, (cl_context_properties)callback,
-      CL_PRINTF_BUFFERSIZE_ARM, 0x1000,
+      CL_PRINTF_BUFFERSIZE_ARM, 0x1000000,
       0
   };
   //------------------------------------
@@ -127,7 +127,7 @@ int main(int, char**)
     while (true) {
         Mat cameraFrame,displayframe;
 		count=count+1;
-		if(count > 299) break;
+		if(count > 1) break;
         camera >> cameraFrame;
         Mat filterframe = Mat(cameraFrame.size(), CV_8UC3);
         Mat grayframe,edge_x,edge_y,edge,edge_inv;
@@ -138,10 +138,10 @@ int main(int, char**)
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
-
+// create buffers - problem with destroying buffers
       grayframe.convertTo(grayframe, CV_32FC1);
       gaussianBlur_gpu(grayframe, grayframe);
-
+      grayframe.convertTo(grayframe, CV_GRAY2BGR);
 		// Scharr(grayframe, edge_x, CV_8U, 0, 1, 1, 0, BORDER_DEFAULT );
 		// Scharr(grayframe, edge_y, CV_8U, 1, 0, 1, 0, BORDER_DEFAULT );
 		// addWeighted( edge_x, 0.5, edge_y, 0.5, 0, edge );
