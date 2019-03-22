@@ -48,28 +48,21 @@ int main(int, char**)
     while (true) {
         Mat cameraFrame,displayframe;
 		count=count+1;
-		if(count > 50) break;
+		if(count > 299) break;
         camera >> cameraFrame;
         Mat filterframe = Mat(cameraFrame.size(), CV_8UC3);
         Mat grayframe,edge_x,edge_y,edge,edge_inv;
     	cvtColor(cameraFrame, grayframe, CV_BGR2GRAY);
 
-      // Scalar value = Scalar( rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255) );
-      // copyMakeBorder(cameraFrame, grayframe, 0, 3, 0, 3, BORDER_REPLICATE, value);
-
 		time (&start);
-    	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
-    	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
-    	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
 
       grayframe.convertTo(grayframe, CV_32FC1);
       gaussianBlur_gpu(grayframe, grayframe);
+      sobelEdge_gpu(grayframe,grayframe);
       grayframe.convertTo(grayframe, CV_8U);
 
-		// Scharr(grayframe, edge_x, CV_8U, 0, 1, 1, 0, BORDER_DEFAULT );
-		// Scharr(grayframe, edge_y, CV_8U, 1, 0, 1, 0, BORDER_DEFAULT );
-		// addWeighted( edge_x, 0.5, edge_y, 0.5, 0, edge );
-    //     threshold(edge, edge, 80, 255, THRESH_BINARY_INV);
+		addWeighted( edge_x, 0.5, edge_y, 0.5, 0, edge );
+        threshold(edge, edge, 80, 255, THRESH_BINARY_INV);
 		time (&end);
 
         cvtColor(edge, edge_inv, CV_GRAY2BGR);

@@ -20,5 +20,6 @@ void print_clbuild_errors(cl_program program,cl_device_id device);
 
 // filters
 void gaussianBlur_gpu(Mat frame, Mat result);
+void sobelEdge_gpu(Mat frame, Mat result);
 
 #endif  // GPU_FILTERS_HPP

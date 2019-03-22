@@ -4,6 +4,8 @@
 
 // #define STRING_BUFFER_LEN 1024
 
+Mat gaussKernel = getGaussianKernel(9, 1.0, CV_32FC1);
+
 void print_clbuild_errors(cl_program program,cl_device_id device)
 	{
 		cout<<"Program Build failed\n";
@@ -96,8 +98,6 @@ void checkError(int status, const char *msg) {
         printf("%s: %s\n",msg,getErrorString(status));
 }
 
-#define STRING_BUFFER_LEN 1024
-
 void callback(const char *buffer, size_t length, size_t final, void *user_data)
 {
      fwrite(buffer, 1, length, stdout);
@@ -136,14 +136,6 @@ unsigned char ** read_file(const char *name) {
 }
 
 void gaussianBlur_gpu(Mat frame, Mat result) {
-	Mat gaussKernel = getGaussianKernel(9, 1.0, CV_32FC1);
-	// float *point = (float *)gaussKernel.data;
-  // printf("Gauss kernel valuse =[");
-  // for(int i = 0; i < 9; i++) {
-  //   printf("%f ", point[i]);
-  // }
-  // printf("]\n");
-
 	cl_platform_id platform;
 	cl_device_id device;
 	cl_context context;
@@ -167,12 +159,6 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
 
   // OpenCL init fun -------------------
   clGetPlatformIDs(1, &platform, NULL);
-  // clGetPlatformInfo(platform, CL_PLATFORM_NAME, STRING_BUFFER_LEN, char_buffer, NULL);
-  // printf("%-40s = %s\n", "CL_PLATFORM_NAME", char_buffer);
-  // clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, STRING_BUFFER_LEN, char_buffer, NULL);
-  // printf("%-40s = %s\n", "CL_PLATFORM_VENDOR ", char_buffer);
-  // clGetPlatformInfo(platform, CL_PLATFORM_VERSION, STRING_BUFFER_LEN, char_buffer, NULL);
-  // printf("%-40s = %s\n\n", "CL_PLATFORM_VERSION ", char_buffer);
 
   context_properties[1] = (cl_context_properties)platform;
   clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
@@ -190,20 +176,15 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
   int errcode = CL_SUCCESS;
   const int numElements = frame.rows * frame.cols;
   float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
-	// float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
-	// for(int i = 0; i < numElements; i++) {
-	// 	pix_window_f[i] = (float)frame.data[i];
-	// }
-// float *pix_window_f= (float *)frame.data;
-
   float *filter_mat_f=(float *) malloc(sizeof(float)*9);
   float *output_f=(float *) malloc(sizeof(float)*numElements);
+
   cl_mem pix_window_buf;
   cl_mem filter_mat_buf;
   cl_mem output_buf;
 
   cl_event write_event[2];
-  cl_event kernel_event/*, finish_event*/;
+  cl_event kernel_event;
 
   int status = 0;
 
@@ -260,26 +241,147 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
 	status = clEnqueueUnmapMemObject(queue,filter_mat_buf, filter_mat_f,0,NULL,NULL);
 	checkError(status, "Unmap error - filter.");
 
-  // printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ROWS:::%d, COLS:::%d\n", (size_t) frame.cols, (size_t) frame.rows);
   const size_t global_work_size[2] = {(size_t) frame.cols, (size_t) frame.rows};
   status = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, NULL, 2, write_event, &kernel_event);
 
   checkError(status, "Failed to launch kernel");
 	status=clWaitForEvents(1,&kernel_event);
 	checkError(status, "Failed  wait");
-	//  clEnqueueUnmapMemObject(queue,output_buf, output_f,0,NULL,NULL);
+	 status = clEnqueueUnmapMemObject(queue,output_buf, output_f,0,NULL,NULL);
+	 checkError(status, "Unmap failed.");
 
 	 memcpy(result.data, output_f, numElements*sizeof(float));
 
-	//  printf("---------------------------------------------------------------------\n");
-	//  for(int i =0; i <  numElements; i++) {
-	// 	 printf("%f\n", output_f[i]);
-	//  }
-	//  printf("---------------------------------------------------------------------\n");
+  clReleaseEvent(write_event[0]);
+  clReleaseEvent(write_event[1]);
+  clReleaseEvent(kernel_event);
+  clReleaseMemObject(pix_window_buf);
+	clReleaseMemObject(filter_mat_buf);
+  clReleaseMemObject(output_buf);
 
-	// free(pix_window_f);
-	// free(filter_mat_f)
-	// free(output_f);
+	clReleaseKernel(kernel);
+	clReleaseCommandQueue(queue);
+	clReleaseProgram(program);
+	clReleaseContext(context);
+}
+
+void sobelEdge_gpu(Mat frame, Mat result) {
+	cl_platform_id platform;
+	cl_device_id device;
+	cl_context context;
+	cl_command_queue queue;
+	cl_program program;
+	cl_kernel kernel;
+
+	/// OpenCL vars ---------------------
+  // int errcode = CL_SUCCESS;
+  // char char_buffer[STRING_BUFFER_LEN];
+  cl_context_properties context_properties[] =
+  {
+      CL_CONTEXT_PLATFORM, 0,
+      CL_PRINTF_CALLBACK_ARM, (cl_context_properties)callback,
+      CL_PRINTF_BUFFERSIZE_ARM, 0x1000000,
+      0
+  };
+  //------------------------------------
+  // int status;
+  ///-----------------------------------
+
+  // OpenCL init fun -------------------
+  clGetPlatformIDs(1, &platform, NULL);
+
+  context_properties[1] = (cl_context_properties)platform;
+  clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+  context = clCreateContext(context_properties, 1, &device, NULL, NULL, NULL);
+  queue = clCreateCommandQueue(context, device, 0, NULL);
+
+  unsigned char **opencl_program=read_file("matrix_mult.cl");
+  program = clCreateProgramWithSource(context, 1, (const char **)opencl_program, NULL, NULL);
+  if (program == NULL){
+  	printf("Program creation failed\n");
+    return;
+  }
+  //------------------------------------
+
+  int errcode = CL_SUCCESS;
+  const int numElements = frame.rows * frame.cols;
+  float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
+  float *filter_mat_f=(float *) malloc(sizeof(float)*9);
+  float *output_f=(float *) malloc(sizeof(float)*numElements);
+
+  cl_mem pix_window_buf;
+  cl_mem filter_mat_buf;
+  cl_mem output_buf;
+
+  cl_event write_event[2];
+  cl_event kernel_event;
+
+  int status = 0;
+
+  // Create kernels --------------------
+  int success=clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+  if(success!=CL_SUCCESS) print_clbuild_errors(program,device);
+  kernel = clCreateKernel(program, "matrix_mult_three_sobel", NULL);
+
+  // Create buffers --------------------
+  pix_window_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, numElements*sizeof(float), NULL, &status);
+  checkError(status, "Failed to create buffer for input A");
+
+  filter_mat_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, 9*sizeof(float), NULL, &status);
+  checkError(status, "Failed to create buffer for input A");
+
+  output_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, numElements*sizeof(float), NULL, &status);
+  checkError(status, "Failed to create buffer for output");
+
+  // Map buffers------------------------
+  pix_window_f = (float *)clEnqueueMapBuffer(queue, pix_window_buf, CL_TRUE, CL_MAP_WRITE,0, numElements*sizeof(float), 0, NULL, &write_event[0],&errcode);
+  checkError(errcode, "Failed to map input - frame");
+  filter_mat_f = (float *)clEnqueueMapBuffer(queue, filter_mat_buf, CL_TRUE, CL_MAP_WRITE,0, 9*sizeof(float), 0, NULL, &write_event[1],&errcode);
+  checkError(errcode, "Failed to map input - filter mat");
+	output_f = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE, CL_MAP_READ, 0, numElements*sizeof(float),  0, NULL, NULL,&errcode);
+  checkError(errcode, "Failed to map output");
+
+	memcpy(pix_window_f, frame.data, numElements*sizeof(float));
+	memcpy(filter_mat_f, gaussKernel.data, 9*sizeof(float));
+
+  // Set kernel arguments.----------------
+  unsigned argi = 0;
+
+  status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &pix_window_buf);
+  checkError(status, "Failed to set argument 1");
+
+  status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &filter_mat_buf);
+  checkError(status, "Failed to set argument 2");
+
+  status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &output_buf);
+  checkError(status, "Failed to set argument 3");
+
+	status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &frame.rows);
+  checkError(status, "Failed to set argument 4");
+
+	status = clSetKernelArg(kernel, argi++, sizeof(cl_mem), &frame.cols);
+  checkError(status, "Failed to set argument 5");
+  //--------------------------------------
+
+  status = clWaitForEvents(2, write_event);
+	checkError(status, "Waiting error1.");
+
+  status = clEnqueueUnmapMemObject(queue,pix_window_buf, pix_window_f,0,NULL,NULL);
+	checkError(status, "Unmap error - pix window.");
+	status = clEnqueueUnmapMemObject(queue,filter_mat_buf, filter_mat_f,0,NULL,NULL);
+	checkError(status, "Unmap error - filter.");
+
+  const size_t global_work_size[2] = {(size_t) frame.cols, (size_t) frame.rows};
+  status = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, NULL, 2, write_event, &kernel_event);
+
+  checkError(status, "Failed to launch kernel");
+	status=clWaitForEvents(1,&kernel_event);
+	checkError(status, "Failed  wait");
+	 status = clEnqueueUnmapMemObject(queue,output_buf, output_f,0,NULL,NULL);
+	 checkError(status, "Unmap failed.");
+
+	 memcpy(result.data, output_f, numElements*sizeof(float));
+
   clReleaseEvent(write_event[0]);
   clReleaseEvent(write_event[1]);
   clReleaseEvent(kernel_event);
