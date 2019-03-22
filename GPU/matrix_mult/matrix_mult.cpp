@@ -110,8 +110,8 @@ int main()
 
 
 //--------------------------------------------------------------------
-const unsigned N = 400;
-const unsigned M = 400;
+const unsigned N = 1000;
+const unsigned M = 1000;
 const unsigned P = 400;
 float *input_a=(float *) malloc(sizeof(float)*N*P);
 float *input_b=(float *) malloc(sizeof(float)*P*M);
@@ -158,7 +158,7 @@ if (program == NULL){
 
      int success=clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
 	 if(success!=CL_SUCCESS) print_clbuild_errors(program,device);
-     kernel = clCreateKernel(program, "vector_add", NULL);
+     kernel = clCreateKernel(program, "matrix_mult", NULL);
 
  // Input buffers.
  input_a_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR,
@@ -269,10 +269,10 @@ if (program == NULL){
     checkError(status, "Failed to set argument 4");
 
 		status = clSetKernelArg(kernel, argi++, sizeof(unsigned), &M);
-    checkError(status, "Failed to set argument 4");
+    checkError(status, "Failed to set argument 5");
 
 		status = clSetKernelArg(kernel, argi++, sizeof(unsigned), &P);
-    checkError(status, "Failed to set argument 4");
+    checkError(status, "Failed to set argument 6");
 
 
 		clWaitForEvents(2, write_event);
