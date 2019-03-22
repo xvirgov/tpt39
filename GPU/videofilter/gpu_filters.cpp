@@ -135,7 +135,15 @@ unsigned char ** read_file(const char *name) {
   return outputstr;
 }
 
-void gaussianBlur_gpu(Mat frame, Mat result, Mat gaussKernel) {
+void gaussianBlur_gpu(Mat frame, Mat result) {
+	Mat gaussKernel = getGaussianKernel(9, 1.0, CV_32FC1);
+	// float *point = (float *)gaussKernel.data;
+  // printf("Gauss kernel valuse =[");
+  // for(int i = 0; i < 9; i++) {
+  //   printf("%f ", point[i]);
+  // }
+  // printf("]\n");
+
 	cl_platform_id platform;
 	cl_device_id device;
 	cl_context context;
@@ -222,35 +230,8 @@ void gaussianBlur_gpu(Mat frame, Mat result, Mat gaussKernel) {
 	output_f = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE, CL_MAP_READ, 0, numElements*sizeof(float),  0, NULL, NULL,&errcode);
   checkError(errcode, "Failed to map output");
 
-	//
 	memcpy(pix_window_f, frame.data, numElements*sizeof(float));
-
 	memcpy(filter_mat_f, gaussKernel.data, 9*sizeof(float));
-	// printf("---------------------------------------------------------------------\n");
-	// for(int i =0; i <  numElements; i++) {
-	// 	printf("%f\n", pix_window_f[i]);
-	// }
-	// printf("---------------------------------------------------------------------\n");
-
-  // gauss filter matrix - https://lodev.org/cgtutor/filtering.html
-  // filter_mat_f[0] = 0.077847;
-  // filter_mat_f[1] = 0.123317;
-  // filter_mat_f[2] = 0.077847;
-  // filter_mat_f[3] = 0.123317;
-  // filter_mat_f[4] = 0.195346;
-  // filter_mat_f[5] = 0.123317;
-  // filter_mat_f[6] = 0.077847;
-  // filter_mat_f[7] = 0.123317;
-  // filter_mat_f[8] = 0.077847;
-	// filter_mat_f[0] = -1.;
-  // filter_mat_f[1] = -1.;
-  // filter_mat_f[2] = -1.;
-  // filter_mat_f[3] = -1.;
-  // filter_mat_f[4] =  8;
-  // filter_mat_f[5] = -1.;
-  // filter_mat_f[6] = -1.;
-  // filter_mat_f[7] = -1.;
-  // filter_mat_f[8] = -1.;
 
   // Set kernel arguments.----------------
   unsigned argi = 0;
@@ -275,10 +256,12 @@ void gaussianBlur_gpu(Mat frame, Mat result, Mat gaussKernel) {
 	checkError(status, "Waiting error1.");
 
   status = clEnqueueUnmapMemObject(queue,pix_window_buf, pix_window_f,0,NULL,NULL);
-	checkError(status, "Unmap error.");
+	checkError(status, "Unmap error - pix window.");
+	status = clEnqueueUnmapMemObject(queue,filter_mat_buf, filter_mat_f,0,NULL,NULL);
+	checkError(status, "Unmap error - filter.");
 
   // printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ROWS:::%d, COLS:::%d\n", (size_t) frame.cols, (size_t) frame.rows);
-  const size_t global_work_size[2] = {640, 360};
+  const size_t global_work_size[2] = {(size_t) frame.cols, (size_t) frame.rows};
   status = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, NULL, 2, write_event, &kernel_event);
 
   checkError(status, "Failed to launch kernel");

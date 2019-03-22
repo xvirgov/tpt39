@@ -52,13 +52,13 @@ int index_y = get_global_id(1);
 if(index_x + 3 >= cols) return;
 if(index_y + 3 >= rows) return;
 
-float filter_mat_f[] = { 0.077847,0.123317,0.077847,0.123317,0.195346,0.123317,0.077847,0.123317,0.077847 };
+// float filter_mat_f[] = { 0.077847,0.123317,0.077847,0.123317,0.195346,0.123317,0.077847,0.123317,0.077847 };
 int acc = 0;
 z[index_y*cols + index_x] = 0.;
 // printf("%f ", y[0]);
 for(int kr = 0; kr < 3; kr++) {
   for(int kc = 0; kc < 3; kc++) {
-     z[index_y*cols + index_x] += (x[(index_y+kr)*cols + index_x + kc] * filter_mat_f[kr*3 + kc]);
+     z[index_y*cols + index_x] += (x[(index_y+kr)*cols + index_x + kc] * y[kr*3 + kc]);
     //  printf("%f ",y[kr*3 + kc]);
     //  printf("%f ", y[kr*3 + kc]);
   }

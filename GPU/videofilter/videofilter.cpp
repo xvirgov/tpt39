@@ -12,16 +12,10 @@ using namespace cv;
 using namespace std;
 #define SHOW
 
+RNG rng(12345);
+
 int main(int, char**)
 {
-  Mat gaussKernel = cv::getGaussianKernel(9, 2.0, CV_32FC1);
-  float *point = (float *)gaussKernel.data;
-  printf("Gauss kernel valuse =[");
-  for(int i = 0; i < 9; i++) {
-    printf("%f ", point[i]);
-  }
-  printf("]\n");
-
     VideoCapture camera("./bourne.mp4");
     if(!camera.isOpened())  // check if we succeeded
         return -1;
@@ -60,15 +54,16 @@ int main(int, char**)
         Mat grayframe,edge_x,edge_y,edge,edge_inv;
     	cvtColor(cameraFrame, grayframe, CV_BGR2GRAY);
 
+      // Scalar value = Scalar( rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255) );
+      // copyMakeBorder(cameraFrame, grayframe, 0, 3, 0, 3, BORDER_REPLICATE, value);
 
 		time (&start);
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
 
-
       grayframe.convertTo(grayframe, CV_32FC1);
-      gaussianBlur_gpu(grayframe, grayframe, gaussKernel);
+      gaussianBlur_gpu(grayframe, grayframe);
       grayframe.convertTo(grayframe, CV_8U);
 
 		// Scharr(grayframe, edge_x, CV_8U, 0, 1, 1, 0, BORDER_DEFAULT );
