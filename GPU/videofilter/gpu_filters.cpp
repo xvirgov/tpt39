@@ -1,13 +1,8 @@
+#include <string.h>
+
 #include "gpu_filters.hpp"
 
-#define STRING_BUFFER_LEN 1024
-
-extern cl_platform_id platform;
-extern cl_device_id device;
-extern cl_context context;
-extern cl_command_queue queue;
-extern cl_program program;
-extern cl_kernel kernel;
+// #define STRING_BUFFER_LEN 1024
 
 void print_clbuild_errors(cl_program program,cl_device_id device)
 	{
@@ -101,40 +96,98 @@ void checkError(int status, const char *msg) {
         printf("%s: %s\n",msg,getErrorString(status));
 }
 
-// void matToConv(Mat imageMatrix, float *convMatrix, int rows, int cols) {
-//   float curVal;
-//   int curIndX, curIndY;
-//   const int kernelSize = 9;
-//   const int KERNEL_MAP_X[9] = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
-//   const int KERNEL_MAP_Y[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
-//
-//   int curIdx = 0;
-//   for (int i = 0; i < rows; i++) {
-//     for (int j = 0; j < cols; j++) {
-//       for (int k = 0; k < kernelSize; k++) {
-//         curIndX = i + KERNEL_MAP_X[k];
-//         curIndY = j + KERNEL_MAP_Y[k];
-//         if ((curIndX < 0) || (curIndX >= rows) || (curIndY < 0) ||
-//             (curIndY >= cols)) {
-//           curVal = 0;
-//         } else {
-//           curVal = imageMatrix.at<float>(curIndX, curIndY);
-//           // if ((i < 5) && (j < 5)) {
-//           //   printf("Curval: %.2f\n", curVal);
-//           // }
-//         }
-//         convMatrix[curIdx * kernelSize + k] = curVal;
-//       }
-//       curIdx++;
-//     }
-//   }
-// }
+#define STRING_BUFFER_LEN 1024
+
+void callback(const char *buffer, size_t length, size_t final, void *user_data)
+{
+     fwrite(buffer, 1, length, stdout);
+}
+
+unsigned char ** read_file(const char *name) {
+  size_t size;
+  unsigned char **output=(unsigned char **)malloc(sizeof(unsigned char *));
+  FILE* fp = fopen(name, "rb");
+  if (!fp) {
+    printf("no such file:%s",name);
+    exit(-1);
+  }
+
+  fseek(fp, 0, SEEK_END);
+  size = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  *output = (unsigned char *)malloc(size);
+  unsigned char **outputstr=(unsigned char **)malloc(sizeof(unsigned char *));
+  *outputstr= (unsigned char *)malloc(size);
+  if (!*output) {
+    fclose(fp);
+    printf("mem allocate failure:%s",name);
+    exit(-1);
+  }
+
+  if(!fread(*output, size, 1, fp)) printf("failed to read file\n");
+  fclose(fp);
+  // printf("file size %d\n",size);
+  // printf("-------------------------------------------\n");
+  snprintf((char *)*outputstr,size,"%s\n",*output);
+  // printf("%s\n",*outputstr);
+  // printf("-------------------------------------------\n");
+  return outputstr;
+}
 
 void gaussianBlur_gpu(Mat frame, Mat result) {
+	cl_platform_id platform;
+	cl_device_id device;
+	cl_context context;
+	cl_command_queue queue;
+	cl_program program;
+	cl_kernel kernel;
+
+	/// OpenCL vars ---------------------
+  // int errcode = CL_SUCCESS;
+  // char char_buffer[STRING_BUFFER_LEN];
+  cl_context_properties context_properties[] =
+  {
+      CL_CONTEXT_PLATFORM, 0,
+      CL_PRINTF_CALLBACK_ARM, (cl_context_properties)callback,
+      CL_PRINTF_BUFFERSIZE_ARM, 0x1000000,
+      0
+  };
+  //------------------------------------
+  // int status;
+  ///-----------------------------------
+
+  // OpenCL init fun -------------------
+  clGetPlatformIDs(1, &platform, NULL);
+  // clGetPlatformInfo(platform, CL_PLATFORM_NAME, STRING_BUFFER_LEN, char_buffer, NULL);
+  // printf("%-40s = %s\n", "CL_PLATFORM_NAME", char_buffer);
+  // clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, STRING_BUFFER_LEN, char_buffer, NULL);
+  // printf("%-40s = %s\n", "CL_PLATFORM_VENDOR ", char_buffer);
+  // clGetPlatformInfo(platform, CL_PLATFORM_VERSION, STRING_BUFFER_LEN, char_buffer, NULL);
+  // printf("%-40s = %s\n\n", "CL_PLATFORM_VERSION ", char_buffer);
+
+  context_properties[1] = (cl_context_properties)platform;
+  clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+  context = clCreateContext(context_properties, 1, &device, NULL, NULL, NULL);
+  queue = clCreateCommandQueue(context, device, 0, NULL);
+
+  unsigned char **opencl_program=read_file("matrix_mult.cl");
+  program = clCreateProgramWithSource(context, 1, (const char **)opencl_program, NULL, NULL);
+  if (program == NULL){
+  	printf("Program creation failed\n");
+    return;
+  }
+  //------------------------------------
+
   int errcode = CL_SUCCESS;
   const int numElements = frame.rows * frame.cols;
-  // float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
-	float *pix_window_f=(float *)frame.data;
+  float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
+	// float *pix_window_f=(float *) malloc(sizeof(float)*numElements);
+	// for(int i = 0; i < numElements; i++) {
+	// 	pix_window_f[i] = (float)frame.data[i];
+	// }
+// float *pix_window_f= (float *)frame.data;
+
   float *filter_mat_f=(float *) malloc(sizeof(float)*9);
   float *output_f=(float *) malloc(sizeof(float)*numElements);
   cl_mem pix_window_buf;
@@ -155,7 +208,7 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
   pix_window_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, numElements*sizeof(float), NULL, &status);
   checkError(status, "Failed to create buffer for input A");
 
-  filter_mat_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, numElements*sizeof(float), NULL, &status);
+  filter_mat_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, 9*sizeof(float), NULL, &status);
   checkError(status, "Failed to create buffer for input A");
 
   output_buf = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, numElements*sizeof(float), NULL, &status);
@@ -164,21 +217,41 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
   // Map buffers------------------------
   pix_window_f = (float *)clEnqueueMapBuffer(queue, pix_window_buf, CL_TRUE, CL_MAP_WRITE,0, numElements*sizeof(float), 0, NULL, &write_event[0],&errcode);
   checkError(errcode, "Failed to map input - frame");
-  filter_mat_f = (float *)clEnqueueMapBuffer(queue, filter_mat_buf, CL_TRUE, CL_MAP_WRITE,0, numElements*sizeof(float), 0, NULL, &write_event[1],&errcode);
+  filter_mat_f = (float *)clEnqueueMapBuffer(queue, filter_mat_buf, CL_TRUE, CL_MAP_WRITE,0, 9*sizeof(float), 0, NULL, &write_event[1],&errcode);
   checkError(errcode, "Failed to map input - filter mat");
+	output_f = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE, CL_MAP_READ, 0, numElements*sizeof(float),  0, NULL, NULL,&errcode);
+  checkError(errcode, "Failed to map output");
+
+	//
+	memcpy(pix_window_f, frame.data, numElements*sizeof(float));
+
+	Mat gaussKernel = cv::getGaussianKernel(3, 1.0, CV_32FC1);
+	memcpy(filter_mat_f, gaussKernel.data, 9*sizeof(float));
+	// printf("---------------------------------------------------------------------\n");
+	// for(int i =0; i <  numElements; i++) {
+	// 	printf("%f\n", pix_window_f[i]);
+	// }
+	// printf("---------------------------------------------------------------------\n");
 
   // gauss filter matrix - https://lodev.org/cgtutor/filtering.html
-  filter_mat_f[0] = 0.077847;
-  filter_mat_f[1] = 0.123317;
-  filter_mat_f[2] = 0.077847;
-  filter_mat_f[3] = 0.123317;
-  filter_mat_f[4] = 0.195346;
-  filter_mat_f[5] = 0.123317;
-  filter_mat_f[6] = 0.077847;
-  filter_mat_f[7] = 0.123317;
-  filter_mat_f[8] = 0.077847;
-
-  pix_window_f[0] = 0.;
+  // filter_mat_f[0] = 0.077847;
+  // filter_mat_f[1] = 0.123317;
+  // filter_mat_f[2] = 0.077847;
+  // filter_mat_f[3] = 0.123317;
+  // filter_mat_f[4] = 0.195346;
+  // filter_mat_f[5] = 0.123317;
+  // filter_mat_f[6] = 0.077847;
+  // filter_mat_f[7] = 0.123317;
+  // filter_mat_f[8] = 0.077847;
+	// filter_mat_f[0] = -1.;
+  // filter_mat_f[1] = -1.;
+  // filter_mat_f[2] = -1.;
+  // filter_mat_f[3] = -1.;
+  // filter_mat_f[4] =  8;
+  // filter_mat_f[5] = -1.;
+  // filter_mat_f[6] = -1.;
+  // filter_mat_f[7] = -1.;
+  // filter_mat_f[8] = -1.;
 
   // Set kernel arguments.----------------
   unsigned argi = 0;
@@ -199,9 +272,11 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
   checkError(status, "Failed to set argument 5");
   //--------------------------------------
 
-  clWaitForEvents(2, write_event);
+  status = clWaitForEvents(2, write_event);
+	checkError(status, "Waiting error1.");
 
-  clEnqueueUnmapMemObject(queue,pix_window_buf, pix_window_f,0,NULL,NULL);
+  status = clEnqueueUnmapMemObject(queue,pix_window_buf, pix_window_f,0,NULL,NULL);
+	checkError(status, "Unmap error.");
 
   // printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ROWS:::%d, COLS:::%d\n", (size_t) frame.cols, (size_t) frame.rows);
   const size_t global_work_size[2] = {640, 360};
@@ -210,13 +285,18 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
   checkError(status, "Failed to launch kernel");
 	status=clWaitForEvents(1,&kernel_event);
 	checkError(status, "Failed  wait");
+	//  clEnqueueUnmapMemObject(queue,output_buf, output_f,0,NULL,NULL);
 
-	output_f = (float *)clEnqueueMapBuffer(queue, output_buf, CL_TRUE, CL_MAP_READ, 0, numElements*sizeof(float),  0, NULL, NULL,&errcode);
-  checkError(errcode, "Failed to map output");
-	 clEnqueueUnmapMemObject(queue,output_buf, output_f,0,NULL,NULL);
+	 memcpy(result.data, output_f, numElements*sizeof(float));
+
+	//  printf("---------------------------------------------------------------------\n");
+	//  for(int i =0; i <  numElements; i++) {
+	// 	 printf("%f\n", output_f[i]);
+	//  }
+	//  printf("---------------------------------------------------------------------\n");
 
 	// free(pix_window_f);
-	// free(filter_mat_f);
+	// free(filter_mat_f)
 	// free(output_f);
   clReleaseEvent(write_event[0]);
   clReleaseEvent(write_event[1]);
@@ -225,6 +305,9 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
 	clReleaseMemObject(filter_mat_buf);
   clReleaseMemObject(output_buf);
 
-}
+	clReleaseKernel(kernel);
+	clReleaseCommandQueue(queue);
+	clReleaseProgram(program);
+	clReleaseContext(context);
 
-void filter(Mat input, Mat res, float *filter_mat) {}
+}
