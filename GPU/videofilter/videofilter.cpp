@@ -14,6 +14,13 @@ using namespace std;
 
 int main(int, char**)
 {
+  Mat gaussKernel = cv::getGaussianKernel(9, 2.0, CV_32FC1);
+  float *point = (float *)gaussKernel.data;
+  printf("Gauss kernel valuse =[");
+  for(int i = 0; i < 9; i++) {
+    printf("%f ", point[i]);
+  }
+  printf("]\n");
 
     VideoCapture camera("./bourne.mp4");
     if(!camera.isOpened())  // check if we succeeded
@@ -59,8 +66,9 @@ int main(int, char**)
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
     	// GaussianBlur(grayframe, grayframe, Size(3,3),0,0);
 
+
       grayframe.convertTo(grayframe, CV_32FC1);
-      gaussianBlur_gpu(grayframe, grayframe);
+      gaussianBlur_gpu(grayframe, grayframe, gaussKernel);
       grayframe.convertTo(grayframe, CV_8U);
 
 		// Scharr(grayframe, edge_x, CV_8U, 0, 1, 1, 0, BORDER_DEFAULT );

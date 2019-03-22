@@ -135,7 +135,7 @@ unsigned char ** read_file(const char *name) {
   return outputstr;
 }
 
-void gaussianBlur_gpu(Mat frame, Mat result) {
+void gaussianBlur_gpu(Mat frame, Mat result, Mat gaussKernel) {
 	cl_platform_id platform;
 	cl_device_id device;
 	cl_context context;
@@ -225,7 +225,6 @@ void gaussianBlur_gpu(Mat frame, Mat result) {
 	//
 	memcpy(pix_window_f, frame.data, numElements*sizeof(float));
 
-	Mat gaussKernel = cv::getGaussianKernel(3, 1.0, CV_32FC1);
 	memcpy(filter_mat_f, gaussKernel.data, 9*sizeof(float));
 	// printf("---------------------------------------------------------------------\n");
 	// for(int i =0; i <  numElements; i++) {

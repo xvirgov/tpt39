@@ -19,6 +19,6 @@ void checkError(int status, const char *msg);
 void print_clbuild_errors(cl_program program,cl_device_id device);
 
 // filters
-void gaussianBlur_gpu(Mat frame, Mat result);
+void gaussianBlur_gpu(Mat frame, Mat result, Mat gaussKernel);
 
 #endif  // GPU_FILTERS_HPP

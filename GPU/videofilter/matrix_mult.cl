@@ -19,7 +19,12 @@ __kernel void matrix_mult_three(__global const float *x,
 
   // z[index_y*cols + index_x] = 0.;
   // printf("ROWS::%d,COLS::%d\n", rows, cols);
-  // if(index_x + 3 >= rows) return;
+  // if(index_x + 3 >= rows) return;form, CL_PLATFORM_NAME, STRING_BUFFER_LEN, char_buffer, NULL);
+  // printf("%-40s = %s\n", "CL_PLATFORM_NAME", char_buffer);
+  // clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, STRING_BUFFER_LEN, char_buffer, NULL);
+  // printf("%-40s = %s\n", "CL_PLATFORM_VENDOR ", char_buffer);
+  // clGetPlatformInfo(platform, CL_PLATFORM_VERSION, STRING_BUFFER_LEN, char_buffer, NULL);
+  // printf("%-40s = %s\n\n
   // if(index_y + 3 >= cols) return;
   // for(int j = 0; j < 3; j++) {
   //   for(int i = 0; i < 3; i++) {
@@ -44,21 +49,9 @@ __kernel void matrix_mult_three(__global const float *x,
 int index_x = get_global_id(0);
 int index_y = get_global_id(1);
 
-// border check
 if(index_x + 3 >= cols) return;
 if(index_y + 3 >= rows) return;
-// 3-matrix check
-// if(index_x%3 || index_y%3) return;
-// float *filter_mat_f=(float *) malloc(sizeof(float)*9);
-// filter_mat_f[0] = 0.077847;
-// filter_mat_f[1] = 0.123317;
-// filter_mat_f[2] = 0.077847;
-// filter_mat_f[3] = 0.123317;
-// filter_mat_f[4] = 0.195346;
-// filter_mat_f[5] = 0.123317;
-// filter_mat_f[6] = 0.077847;
-// filter_mat_f[7] = 0.123317;
-// filter_mat_f[8] = 0.077847;
+
 float filter_mat_f[] = { 0.077847,0.123317,0.077847,0.123317,0.195346,0.123317,0.077847,0.123317,0.077847 };
 int acc = 0;
 z[index_y*cols + index_x] = 0.;
@@ -66,6 +59,7 @@ z[index_y*cols + index_x] = 0.;
 for(int kr = 0; kr < 3; kr++) {
   for(int kc = 0; kc < 3; kc++) {
      z[index_y*cols + index_x] += (x[(index_y+kr)*cols + index_x + kc] * filter_mat_f[kr*3 + kc]);
+    //  printf("%f ",y[kr*3 + kc]);
     //  printf("%f ", y[kr*3 + kc]);
   }
 }
